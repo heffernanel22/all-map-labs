@@ -1,0 +1,139 @@
+---
+title: "Chapter 11 Homework"
+author: "Ellie "hacker(wo)man supreme" Heffernan"
+date: "10/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Do some set-up
+```{r}
+#Load packages
+library(tigris)
+library(pacman)
+p_load(leaflet,glue,dplyr,sf,tmap,tmaptools,tidycensus,ggmap,htmltools, htmlwidgets)
+p_load_gh(c("walkerke/tigris","bhaskarvk/leaflet.extras"))
+
+
+#Load census key
+census_key <- "ee879694947d7f51fb7006bed7d04d8d980a42fc"
+Sys.setenv(CENSUS_KEY=census_key)
+install = TRUE
+```
+
+#Importing North Carolina's counties
+```{r}
+nc_counties <-counties("NC")
+
+nc_schools <-school_districts("NC")
+
+nc_counties_sf <-counties("NC",year = 2015,class = "sf")
+```
+
+#Creating a basic map of an imported shapefile
+```{r}
+qtm(nc_counties_sf)
+```
+
+#Importing North Carolina income from the census
+```{r}
+library(tidycensus)
+getwd()
+nc_income <- read_shape("/Users/ephmd920/Documents/MEJO 390/chapter11-maps_in_r/acs2018_5yr_B19013_05000US37199.shp",as.sf = TRUE)
+
+
+```
+
+
+#You can also import with the sf package
+```{r}
+nc_income <- st_read("/Users/ephmd920/Documents/MEJO 390/chapter11-maps_in_r/acs2018_5yr_B19013_05000US37199.shp")
+```
+
+#Checking structure & changing column names
+```{r}
+#Renaming things
+str(nc_income)
+names(nc_income)[2:4] <- c("County","Median.Income","MoE")
+
+#Changing to scientific notation & taking a look with a histogram
+options(scipen = 999)
+hist(nc_income$Median.income)
+
+#Making a basic map of the data with tmap
+qtm(nc_income,fill ="Median.Income")
+```
+#An even easier way to pull U.S. census data with tidycensus
+```{r}
+
+census_api_key(census_key)
+
+nc_income <- get_acs(state = "NC",geography = "county",variables = "B19013_001",geometry = TRUE)
+```
+
+
+#Making interactive maps with tmap
+```{r}
+#You can do a little bit with qtm
+qtm(nc_income,fill = "Median.Income")
+
+#Toggling between interactive & static
+ttm()
+tmap_last()
+
+#Creating the interactive map
+tm_shape(nc_income) + tm_polygons(col = "Median.Income",id = "County")
+```
+
+#Saving the map and storing it on a self-contained html page
+```{r}
+#Saving the map
+nc_income_map <-tm_shape(ca_income) + tm_polygons(col = "Median.Income",id = "County")
+
+#Placing it on a self-contained html page
+tmap_save(nc_income_map,"NC_Counties.Map.html")
+```
+
+#Adding some colors! Woo-hoo!
+```{r}
+nc_income_map <-tm_shape(ca_income) + tm_polygons(col = "Median.Income",id = "County",palette = "Greys",n=8)
+```
+
+#Joining in data from other places
+```{r}
+nc_counties <-counties("NC",class = "sf")
+
+#If NOT importing from the census, use
+#tmaptools::read_shape("shapefile.shp",as.sf = TRUE) or read_sf("myshapefile.shp")
+```
+
+#Downloading California unemployment data
+```{r}
+download.file("http://www.machlis.com/SampleData/CA_Unemployment_2016-12.xlsx",  destfile = "CA_unemployment.xlsx", mode = "wb", quiet = TRUE)  
+
+ca_unemployment <- rio::import("CA_Unemployment.xlsx", skip = 1) 
+```
+
+#Checking that there's the right number of counties.
+```{r}
+#Checking
+common_counties <- union(ca_counties$NAMELSAD, ca_unemployment$County)  length(common_counties) == length(ca_counties$NAMELSAD) 
+
+#renaming column names
+ca_counties <- dplyr::rename(ca_counties,County = NAMESLAD)
+```
+
+#Using the append_data() function to combine numerical data & geospatial data
+
+```{r}
+ca_joined <- tmaptools::append_data(ca_counties,ca_unemployment,key.shp = "County",key.data = "County")
+```
+
+#Map everything as you usually would
+```{r}
+tm_shape(ca_joined) + tm_polygons(col = "Rate",id = "County",palette = "Oranges")
+```
+

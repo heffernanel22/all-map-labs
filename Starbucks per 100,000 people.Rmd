@@ -1,0 +1,146 @@
+---
+title: "Starbucks per 100K people in each state"
+author: "Ellie "hacker(wo)man supreme" Heffernan"
+date: "10/26/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Making interactive chloropleth maps
+- too many dots on a map! 
+- Chloropleth
+  - effective way to show geographic data 
+  - readers don't usually click around 
+  
+#Need a shapefile of the polygons you are filling in
+
+#Use tigiris to import shape-files
+```{r}
+library(tigris)
+library(dplyr)
+library(leaflet)
+```
+
+#Starting to create the map
+```{r}
+states <-states(cb=TRUE)
+
+states %>% leaflet() %>% addTiles()%>%
+  addPolygons(popup =~NAME)
+```
+
+#Load the data in
+```{r}
+getwd()
+
+starbucks <- read_csv("/Users/ephmd920/Documents/MEJO 390/starbucks_maps/starbucks.csv")
+
+sb_state <-starbucks %>% group_by(Province) %>% summarise(total = n()) %>% mutate(type = "Starbucks") %>% rename(state = Province)
+```
+
+#Join this dataframe and the SB state dataframe
+```{r}
+states_merged_sb <- geo_join(states,sb_state,"STUSPS","state")
+
+```
+
+
+#Create a color palette that shows the full "range" of numbers
+```{r}
+pal <- colorNumeric("Greens",domain = states_merged_sb$total)
+
+pal
+```
+
+#Getting rid of states with NA's
+```{r}
+states_merged_sb <-subset(states_merged_sb,!is.na(total))
+```
+
+
+#Time to map!
+```{r}
+#Pop up text
+popup_sb <-paste0("Total:",as.character(states_merged_sb$total))
+leaflet() %>% addProviderTiles("CartoDB.Positron") %>% setView(-98.483330,38.712046,zoom=4) %>% addPolygons(data=states_merged_sb,fillColor = pal(states_merged_sb$total), fillOpacity = .7,weight = .2,smoothFactor = .2,popup = ~popup_sb) %>% addLegend(pal = pal,values=states_merged_sb$total,position = "bottomright",title = "Starbucks")
+```
+
+#We need to adjust for population using census api 
+```{r}
+library(censusapi)
+library(tidycensus)
+census_key <- "ee879694947d7f51fb7006bed7d04d8d980a42fc"
+census_api_key(census_key)
+
+readRenviron("~/.Renviron")
+
+```
+
+#Get the state population (PROBLEMS)
+```{r}
+state_pop <-getCensus(name="acs5",vintage = 2015,key =census_key,vars=c("NAME","B01003_001E"),region = "state:*")
+```
+
+#Cleaning up to join successfully
+```{r}
+colnames(state_pop) <-c("state_id","NAME","population")
+
+#Figuring out R state abbreviation names
+state_off <-data.frame(state.abb,state.name)
+
+colnames(state_off) <-c("state","NAME")
+```
+#Time to join them in the dataframe
+```{r}
+state_pop <- left_join(state_pop,state_off)
+#Has the name of the state and the abbreviation
+
+#Manually add DC and Puerto Rico
+state_pop$state <- ifelse(state_pop$NAME =="District of Columbia","DC",as.character(state_pop$state))
+
+state_pop$state <-ifelse(state_pop$NAME=="Puerto Rico","PR",as.character(state_pop$state))
+
+#Joining
+sb_state <-left_join(sb_state,state_pop)
+```
+
+
+#Doing some math
+```{r}
+sb_state_pop <- sb_state
+
+sb_state_pop$per_capita <- round(sb_state_pop$total/sb_state_pop$population*100,000)
+
+#This should create a per capita column 
+```
+
+#Getting ready to create a new map file called states merged!
+```{r}
+states_merged_sb_pc <-geo_join(states,sb_state_pop,"STUSPS","state")
+
+#Making a color palette
+pal_sb <-colorNumeric("Greens",domain = states_merged_sb_pc$per_capita)
+
+
+#Getting rid of NAs 
+states_merged_sb_pc <-subset(states_merged_sb_pc,!is.na(per_capita))
+
+#Creating a new popup
+- popup_sb <-paste0("<strong",states_merged_sb_pc$total,"<br/>Per capita:",as.character(states_merged_sb_pc$per_capita))
+```
+
+
+#Actually mapping
+```{r}
+leaflet() %>% addProviderTiles(providers$CartoDB.Positron) %>% setView(-98.483330,38.712046,zoom=4) %>% addPolygons(data=states_merged_sb,fillColor = pal_sb(states_merged_sb_pc$per_capita), fillOpacity = .9,weight = .2,smoothFactor = .2,popup = ~popup_sb) %>% addLegend(pal = pal_sb,values=states_merged_sb_pc$per_capita,position = "bottomright",title = "Starbucks <br/> per 100,000 <br/> residents")
+```
+
+
+
+
+
+
+
