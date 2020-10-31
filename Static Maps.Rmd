@@ -1,0 +1,115 @@
+---
+title: "cool stuff :O"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Notes
+- coordinates of an object, how they relate to physical locations on earth
+- two types
+  - geographic (longitude & latitude)
+  - projected (three dimensional grid on two dimensional plane)
+    - many to choose from! we probably use mercader
+      - used on google maps 
+- Spatial data with defined crs
+  - vector or raster
+      - vector = points can be connected to form lines
+      - raster = values within a grid system
+        i.e. satellite imagery 
+- We will focus on vector data only, but you can do both with SF package
+- SF stores in dataframes, works well with dyplyr
+-Shape files
+- B whatevers are census variables
+- Error = margin of error
+- Why doesn't census reporter work for me?
+
+#Load packages :)
+```{r}
+library(ggplot2)
+library(sf)
+library(readr)
+```
+
+#For quick visualization
+```{r}
+options(device = "X11")
+X11.options(type = "cairo")
+```
+
+#Specify the location. Note to self: USE getwd()
+```{r}
+
+getwd()
+fifty_location <-"/Users/ephmd920/Documents/MEJO 390/HMWK92/cb_2018_us_state_20m/cb_2018_us_state_20m.shp"
+
+fifty_states <-st_read(fifty_location)
+
+
+```
+
+#Visualize the map.
+```{r}
+ggplot(fifty_states) + geom_sf()
+```
+
+#Load in the ACS dataframe
+```{r}
+populations <- read_csv("acs2018_1yr_B02001_04000US55/acs2018_1yr_B02001_04000US55.csv")
+
+populations
+```
+
+
+#Join according to names
+```{r}
+library(dplyr)
+fifty_states <-left_join(fifty_states,populations,by = c("NAME"="name"))
+```
+
+
+#Filter out Hawaii & Alaska to reduce processing problems
+```{r}
+forty_eight <- fifty_states %>% filter(NAME!="Hawaii",NAME!="Alaska",NAME!= "Puerto Rico")
+```
+
+
+#Now make a map :) ! 
+```{r}
+colnames(forty_eight)
+ggplot(forty_eight) + geom_sf(aes(fill=B02001001))+scale_fill_distiller(direction =1,name="Population") + labs(title="Population of 48 states",caption ="Source: U.S. Census")
+```
+
+#Load some new packages!
+```{r}
+install.packages("tigris")
+library(tigris)
+```
+
+
+
+#How to download shapefiles directly into R
+```{r}
+options(tigris_class ="sf")
+#Anything loaded can only be a shapefile. 
+
+tx <-counties("TX",cb=T)
+```
+
+#Now we have a shapefile for Texas. Let's plot that out! 
+```{r}
+ggplot(tx)+geom_sf()+theme_void()+theme(panel.grid.major=element_line(color="transparent"))+labs(title="Texas counties")
+```
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,120 @@
+---
+title: "Downloading Census Data & Maps"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load new packages
+```{r}
+install.packages("censusapi")
+library(censusapi)
+```
+
+#How to check what you have
+```{r}
+apis <-listCensusApis()
+#you will need arguments from these columns
+```
+
+#How to check variables
+```{r}
+#acs_vars <-listCensusMetadata(name="acs/acs5",type="variables",vintage ="2016")
+acs_vars
+```
+
+
+#Add a key to your environment. 
+```{r}
+#Load census key
+Sys.setenv(CENSUS_KEY=census_key)
+install = TRUE
+```
+
+#Find the texas median income
+(#getCensus makes a dataframe!!!)
+```{r}
+tx_income <-getCensus(name="acs/acs5",vintage=2016,vars=c("NAME","B19013_001E","B19013_001M"),region="county:*",regionin="state:48")
+```
+
+
+
+#Join the income dataframe and the texas shapefile
+```{r}
+tx4ever <-left_join(tx,tx_income,by=c("COUNTYFP"="county"))
+```
+
+#Now plot this
+```{r}
+ggplot(tx4ever) + geom_sf(aes(fill=B19013_001E),color="white") + theme_void()+ theme(panel.grid.major=element_line(colour="transparent"))+scale_fill_distiller(palette ="Oranges",direction=1,name="Median income")+labs(title="2016 Median Income in Texas counties",caption="Source:U.S.Census/ACS5 2016")
+```
+
+#Downloading shape files & census data at the same time.Start by installing & loading tidycensus. 
+```{r}
+install.packages("tidycensus")
+library(tidycensus)
+```
+
+#Load census key
+```{r}
+census_key <- "ee879694947d7f51fb7006bed7d04d8d980a42fc"
+census_api_key(census_key)
+install = TRUE
+```
+
+#Create an array with variables we already know.
+```{r}
+jobs <-c(labor_force="B23025_005E",unemployed="B23025_002E")
+```
+
+#Create a new object called jersey.
+```{r}
+jersey <-get_acs(geography = "tract",year = 2016,variables = jobs,county = "Hudson",state = "NJ",geometry = T)
+```
+
+#Clean the dataframe up.
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+
+#Make the graph & visualize it 
+jersey %>% mutate(variable = case_when(variable == "B23025_005"~"unemployed",variable == "B23025_002"~"workforce")) %>% select(-moe)%>% spread(variable,estimate) %>% mutate(percent_unemployed =round(unemployed/workforce*100,2)) %>% ggplot(aes(fill =percent_unemployed)) + geom_sf(color = "white") +theme_void()+ theme(panel.grid.major=element_line(colour="transparent"))+scale_fill_distiller(palette ="Reds",direction=1,name="Estimate")+labs(title="Percent unemployed in Jersey City",caption="Source:U.S.Census/ACS5 2016")
+
+```
+
+#Making small multiples with maps !!!! (this didn't work and I have no clue why)
+```{r}
+library(viridis)
+#Viridis has cool palettes 
+
+racevars <-c(White ="P0050003", Black="P0050004", Asian="P0050006",Hispanic = "P0040003")
+
+harris <- get_decennial(geography = "tract", variables = racevars, year = 2010,state = "TX", county = "Harris County", geometry = T, summary_var = "P0010001")
+
+
+```
+
+
+#Visualizing this. (this also didn't work and I have no clue why)
+```{r}
+harris %>% mutate(pct=100*(value/summary_value)) %>% ggplot(aes(fill=pct,color=pct)) + facet_wrap(~variable)+geom_sf(crs = 26915) +scale_fill_viridis(direction =-1)+ scale_color_viridis(direction= -1)+theme_void()+ theme(panel.grid.major=element_line(colour="transparent")) +labs(title="Racial geography of Harris County, Texas",caption="Source:U.S.Census 2010) 
+```
+
+#How to bring Alaska & Hawaii back
+```{r}
+#shift_geo = T will reposition states 
+
+#Make the dataframe
+county_pov <- get_acs(geography = "county",variables = "B17001_002",summary_var = "B17001_001",geometry = TRUE,shift_geo = TRUE) %>% mutate(pctpov = 100*(estimate/summary_est))
+
+#Map it out
+ggplot(county_pov)+geom_sf(aes(fill=pctpov),color=NA) + coord_sf(datum = NA) + labs(title = "Percent of population in poverty by county",subtitle = "Alaska and Hawaii are shifted and not to scale",caption = "Source:ACS 5-year,2016",fill = "% in poverty") + scale_fill_viridis(direction = -1)
+```
+
+
+
+
+
